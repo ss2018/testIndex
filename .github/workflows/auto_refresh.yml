@@ -1,1 +1,42 @@
+name: Auto Refresh China Macro Data
 
+on:
+  schedule:
+    # 每天北京时间 18:00 (UTC 10:00) 自动运行刷新
+    - cron: '0 10 * * *'
+  workflow_dispatch: # 允许你在 GitHub 页面上手动点击按钮触发刷新
+
+jobs:
+  refresh-data:
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1. 检出仓库代码
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # 2. 设置 Python 环境
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+        cache: 'pip' # 开启缓存以加速后续运行
+
+    # 3. 安装依赖库
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install akshare pandas
+
+    # 4. 执行 Python 脚本刷新数据
+    - name: Run data fetcher
+      run: python fetch_macro.py
+
+    # 5. 自动将更新后的 CSV 文件提交回仓库
+    - name: Commit and push if data changed
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git add data/*.csv
+        # 只有在文件有变动时才提交，防止空提交报错
+        git diff --quiet && git diff --staged --quiet || (git commit -m "🔄 自动刷新中国宏观经济指标 数据时间: $(date +'%Y-%m-%d')" && git push)
