@@ -1,2 +1,4 @@
-akshare 
+akshare
 pandas
+streamlit
+plotly
