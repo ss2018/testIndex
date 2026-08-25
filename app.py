@@ -40,14 +40,40 @@ tab1, tab2, tab3 = st.tabs(["📈 PMI 趋势", "🛒 核心通胀 (CPI)", "🧱 
 with tab1:
     if pmi_df is not None:
         st.markdown("### 采购经理人指数 (PMI) 走势")
-        # 转换日期格式以便完美绘图
-        pmi_df['月份'] = pd.to_datetime(pmi_df['月份'])
-        # 绘制折线图
-        fig_pmi = px.line(pmi_df, x='月份', y=['制造业-指数', '非制造业-指数'], 
-                          labels={'value': '指数 (%)', 'variable': '指标分类'},
-                          title="中国 PMI 历史走势（50% 为荣枯线）")
-        fig_pmi.add_hline(y=50, line_dash="dash", line_color="red", annotation_text="荣枯线")
-        st.plotly_chart(fig_pmi, use_container_width=True)
+        
+        # 克隆一份数据防污染
+        plot_pmi_df = pmi_df.copy()
+        
+        # 💡 核心修复：清洗中文字符 (例如将 "2023年07月份" 转换为 "2023-07")
+        try:
+            # 兼容带有 “年” 和 “月份/月” 的中文字符串
+            plot_pmi_df['月份'] = plot_pmi_df['月份'].astype(str) \
+                                                    .str.replace('年', '-', regex=False) \
+                                                    .str.replace('月份', '', regex=False) \
+                                                    .str.replace('月', '', regex=False)
+            
+            # 使用 format="%Y-%m" 进行精准转换，异常数据强制转为 NaT 避免崩溃
+            plot_pmi_df['月份'] = pd.to_datetime(plot_pmi_df['月份'], format="%Y-%m", errors='coerce')
+            
+            # 过滤掉无法解析的脏数据
+            plot_pmi_df = plot_pmi_df.dropna(subset=['月份'])
+            # 按时间正序排列（有些接口默认倒序，画折线图会错乱）
+            plot_pmi_df = plot_pmi_df.sort_values('月份')
+            
+        except Exception as date_err:
+            st.error(f"日期字段清洗失败，请检查源数据格式。错误原因: {date_err}")
+
+        # 确保清洗成功后再画图
+        if not plot_pmi_df.empty:
+            # 绘制折线图
+            fig_pmi = px.line(plot_pmi_df, x='月份', y=['制造业-指数', '非制造业-指数'], 
+                              labels={'value': '指数 (%)', 'variable': '指标分类'},
+                              title="中国 PMI 历史走势（50% 为荣枯线）")
+            fig_pmi.add_hline(y=50, line_dash="dash", line_color="red", annotation_text="荣枯线")
+            st.plotly_chart(fig_pmi, use_container_width=True)
+        else:
+            st.warning("⚠️ 过滤后暂无合法的日期数据用于绘图")
+
 
 with tab2:
     if cpi_df is not None:
